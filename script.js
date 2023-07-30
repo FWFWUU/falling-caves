@@ -10,8 +10,8 @@ const mouse = {
 
 var prefs = {
 	framerate: 60.0,
-	fonts: new Array(256),
-	textures: new Array(256)
+	showChunksLimit: 3
+
 }
 
 class Resource_Loader {
@@ -232,6 +232,10 @@ class Noise {
 			}
 		}
 	}
+
+	static lerp(x, y, s) {
+		return x + s * (y - x)
+	}
 }
 
 class Particle {
@@ -325,7 +329,7 @@ class Level {
 	noise = null
 	scrollX = 0
 	scrollY = 0
-	static pixelSize = 6
+	static pixelSize = 8
 	entities = new Array
 	player = null
 	chunks = new Array
@@ -426,7 +430,7 @@ class Level {
 			var xc = Math.floor(e.x / (Level.chunkSize * Level.pixelSize))
 
 			if (Player.prototype.isPrototypeOf(e)) {
-				for (let dist = -2; dist < 2; dist++) {
+				for (let dist = -prefs.showChunksLimit; dist < prefs.showChunksLimit; dist++) {
 
 					var nearChunk = this.getChunk(xc + dist)
 
@@ -436,6 +440,10 @@ class Level {
 			}
 
 			e.render()
+		})
+
+		Projectile.projectiles.forEach((p) => {
+			p.render()
 		})
 	}
 
@@ -449,6 +457,10 @@ class Level {
 			}
 
 			e.update(ticks)
+		})
+
+		Projectile.projectiles.forEach((p) => {
+			p.update(ticks)
 		})
 
 	}
@@ -546,20 +558,97 @@ class Text {
 class Projectile {
 	static projectiles = new Array()
 
-	constructor() {
-		this.x = 0
-		this.y = 0
+	constructor(x, y, direction) {
+		this.x = x
+		this.y = y
 		this.vel = {
 			x: 0,
 			y: 0
 		}
+		this.accel = 0.008
+		this.sprite = new Sprite()
+		this.sprite.x = this.x
+		this.sprite.y = this.y
+		this.level = null
+		this.direction = direction
+		this.angle = Math.atan2(-(this.y - this.direction.y), -(this.x - this.direction.x))
+
+		Projectile.projectiles.push(this)
 	}
 
 	render() {
 
 	}
 
+	move() {
+		this.vel.x = Math.cos(this.angle) * Noise.lerp(0, 5, 20 * 0.09)
+		this.vel.y = Math.sin(this.angle) * Noise.lerp(0, 5, 20 * 0.09)
 
+		//this.angle = Math.atan2(-(this.y - this.direction.y), -(this.x - this.direction.x))
+
+		this.x += this.vel.x//Math.cos(this.angle) * (this.vel.x * this.accel)
+		this.y += this.vel.y//Math.sin(this.angle) * (this.vel.y * this.accel)
+
+		var xg = Math.floor(this.x / Level.pixelSize)
+		var yg = Math.floor(this.y / Level.pixelSize)
+
+		if (!Particle.mayPass(this.level.getPixel(xg, yg))) {
+			this.onTouch(xg, yg)
+		}
+	}
+
+	update(ticks) {
+
+	}
+
+	destroy() {
+		var index = Projectile.projectiles.indexOf(this)
+
+		Projectile.projectiles.splice(index, 1)
+	}
+
+	onTouch(xg, yg) {
+
+	}
+
+}
+
+class ExplosionProjectile extends Projectile {
+	constructor(x, y, direction) {
+		super(x, y, direction)
+
+		this.sprite.region.x = 0
+		this.sprite.region.y = 24
+		this.sprite.region.w = 8
+		this.sprite.region.h = 8
+
+		this.sprite.scaleX = 1.6
+		this.sprite.scaleY = 1.6
+	}
+
+	render() {
+		this.sprite.image = Resource_Loader.images[0].image
+		this.sprite.render()
+	}
+
+	update(ticks) {
+		this.sprite.x = this.x - this.level.scrollX
+		this.sprite.y = this.y - this.level.scrollY
+
+		this.sprite.rotation_degrees = (180 * this.angle / Math.PI)
+		this.move()
+	}
+
+	onTouch(xg, yg) {
+
+		for (let i = -4; i < 4; i++) {
+			for (let j = -4; j < 4; j++) {
+				this.level.pixels[(xg + i) + (yg + j) * this.level.noise.w] = Particle.Type_Air
+			}
+		}
+
+		this.destroy()
+	}
 }
 
 class Entity {
@@ -641,7 +730,7 @@ class Entity {
 
 				if (!Particle.mayPass(this.level.getPixel(i, j))) {
 					//if (dx != 0)
-					//	this.vel.y = -this.jump_Height
+					//	this.vel.y = -this.jump_Height / 2
 
 					if (dy > 0)
 						this.on_Floor = true
@@ -769,9 +858,39 @@ class Player extends Mob {
 		if (keyboard.Space && this.on_Floor)
 			this.vel.y = -this.jump_Height
 
-		this.vel.x = impulse.x
+		this.vel.x = Noise.lerp(this.vel.x, impulse.x * 4, ticks * 0.80)
 
 		this.move(this.vel.x, this.vel.y)
+
+		if (mouse.pressed) {
+			var explosion_Projectile = new ExplosionProjectile(this.x, this.y, {
+				x: mouse.x + this.level.scrollX, y: mouse.y + this.level.scrollY
+			})
+			explosion_Projectile.level = this.level
+		}
+	}
+}
+
+class Timer {
+	constructor() {
+		this.seconds = 0
+	}
+
+	asSeconds() {
+
+		var ms = 0
+
+		while (ms < 1000.0) {
+			ms += Math.pow(10.0, -3)
+		}
+
+		this.seconds++
+
+		return this.seconds
+	}
+
+	reset() {
+		this.seconds = 0
 	}
 }
 
@@ -784,6 +903,7 @@ class Game {
 	start = false
 	menu_Options = new Array(3)
 	menu_Selection = 0
+	fade_Transparency = 0
 
 	constructor() {
 		this.level = new Level(23, 128)
@@ -791,6 +911,8 @@ class Game {
 		this.menu_Options[0] = "Single Player"
 		this.menu_Options[1] = "Multiplayer (LAN)"
 		this.menu_Options[2] = "Settings"
+
+		this.fade_Timer = new Timer()
 	}
 
 	init() {
@@ -802,20 +924,27 @@ class Game {
 		for (let index = 0; index < this.menu_Options.length; index++) {
 			var color = "white"
 
-			var option_Rect = new Rect(100, (100 - 28) + (index * 28), 24 * this.menu_Options[index].length, 24)
+			var option_Rect = new Rect(100, 100 + (index * 32), 9 * this.menu_Options[index].length, 16)
 
 			if (this.menu_Selection == index) {
 				color = "yellow"
 
-				gfx.drawImage(Resource_Loader.images[0].image, 0, 16, 8, 8, 80, 74 + (this.menu_Selection * 24), 16, 16)
+				gfx.drawImage(Resource_Loader.images[0].image, 0, 16, 8, 8, 80, option_Rect.y, 16, 16)
 			}
+
+			gfx.strokeStyle = "white"
+
+			gfx.strokeRect(option_Rect.x, option_Rect.y, option_Rect.w, option_Rect.h)
 		
-			Text.render(this.menu_Options[index], option_Rect.x, option_Rect.y + 28, 24, color)
+			Text.render(this.menu_Options[index], option_Rect.x, option_Rect.y + 16, 24, color)
 
 			if (option_Rect.collides(new Rect(mouse.x, mouse.y, 1, 1))) {
 				this.menu_Selection = index
 				if (mouse.pressed) {
-					if (this.menu_Selection == 0) this.start = true
+					if (this.menu_Selection == 0) {
+						this.fade_Transparency = 0
+						this.start = true
+					}
 				}
 			}
 
@@ -832,8 +961,10 @@ class Game {
 
 		gfx.clearRect(0, 0, canvas.width, canvas.height)
 
-		gfx.fillStyle = "rgb(23, 33, 23)"
+		gfx.fillStyle = "rgb(0, 0, 0)"
 		gfx.fillRect(0, 0, canvas.width, canvas.height)	
+
+		gfx.globalAlpha = this.fade_Transparency
 
 		if (this.start)
 			this.level.render()
@@ -844,6 +975,8 @@ class Game {
 	}
 
 	update(ticks) {
+		this.fade_Transparency = Noise.lerp(this.fade_Transparency, 1.0, ticks * 0.5)
+
 		this.level.update(ticks)
 	}
 
@@ -853,17 +986,15 @@ class Game {
 			this.current_Frame = Date.now()
 			this.tick_Frame = (this.current_Frame - this.last_Frame)
 			
-			if (this.tick_Frame >= 1000 / prefs.framerate) {
+			if (this.tick_Frame >= 1 / prefs.framerate) {
 
 				this.framerate = Math.floor(this.tick_Frame)
 
 				//console.log(prefs.framerate / this.tick_Frame)
 
-				this.update(prefs.framerate / this.tick_Frame)
+				this.update(1/ this.tick_Frame)
 
-				
-
-				this.last_Frame = this.current_Frame - (this.tick_Frame % (1000 / prefs.framerate))
+				this.last_Frame = this.current_Frame - (this.tick_Frame % (1 / prefs.framerate))
 
 			}
 
