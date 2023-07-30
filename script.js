@@ -125,13 +125,13 @@ class Noise {
 		}
 
 		if (point.x < 0)
-			point.x += 16
+			point.x += 8
 
 		if (point.y < 0)
 			point.y += 16
 
 		if (point.x >= this.w)
-			point.x -= 16
+			point.x -= 8
 
 		if (point.y >= this.h)
 			point.y -= 16
@@ -406,8 +406,8 @@ class Level {
 	}
 
 	getPixel(x, y) {
-		if (x < 0 || y < 0 || x >= this.w + this.chunkSize || y >= this.h)
-			return
+		if (x < 0 || y < 0 || x >= this.noise.w || y >= this.noise.h)
+			return Particle.Type_Air
 
 		return this.pixels[x + y * this.noise.w]
 	}
@@ -444,8 +444,8 @@ class Level {
 		this.entities.forEach((e) => {
 			
 			if (Player.prototype.isPrototypeOf(e)) {
-				this.scrollX = e.x - canvas.width / 2
-				this.scrollY = e.y - canvas.height / 2
+				this.scrollX = Math.floor(e.x - canvas.width / 2)
+				this.scrollY = Math.floor(e.y - canvas.height / 2)
 			}
 
 			e.update(ticks)
@@ -493,20 +493,73 @@ class Sprite {
 		this.region = new Rect(0, 0, 0, 0)
 		this.rotation_degrees = 0.0
 		this.image = null
+		this.offsetX = 0
+		this.offsetY = 0
+		this.flipH = false
+		this.flipV = false
 	}
 
 	render() {
+
+		var flip_X = 1
+		var flip_Y = 1
+
+		if (this.flipH)
+			flip_X = -1
+
+		if (this.flipV)
+			flip_Y = -1
+
 		gfx.save()
 
 		gfx.setTransform(this.scaleX, 0, 0, this.scaleY, this.x, this.y)
 
-		gfx.rotate(this.rotation_degrees * Math.PI / 180)
+		gfx.rotate((this.rotation_degrees % 360) * Math.PI / 180)
+
+		gfx.scale(flip_X, flip_Y)
 
 		if (this.image)
-			gfx.drawImage(this.image, this.region.x, this.region.y, this.region.w, this.region.h, -(this.region.w * this.scaleX) / 2, -(this.region.h * this.scaleY) / 2, this.region.w * this.scaleX, this.region.h * this.scaleY)
+			gfx.drawImage(this.image, this.region.x, this.region.y, this.region.w, this.region.h, -(this.region.w * this.scaleX) / 2 - this.offsetX, -(this.region.h * this.scaleY) / 2 - this.offsetY, this.region.w * this.scaleX, this.region.h * this.scaleY)
 
 		gfx.restore()
 	}
+
+	lookAt(x, y) {
+		var dist = {x: this.x - x, y: this.y - y}
+		var angle = Math.atan2(-dist.y, -dist.x)
+
+		this.rotation_degrees = (180 * angle / Math.PI)
+	}
+}
+
+class Text {
+	static default_Font = "NanumPenScript"
+
+	static render(text, x, y, size = 12, color = "rgb(255, 255, 255)") {
+		gfx.font = `${size}px ${Text.default_Font}`
+		gfx.fillStyle = color
+
+		gfx.fillText(text, x, y)
+	}
+}
+
+class Projectile {
+	static projectiles = new Array()
+
+	constructor() {
+		this.x = 0
+		this.y = 0
+		this.vel = {
+			x: 0,
+			y: 0
+		}
+	}
+
+	render() {
+
+	}
+
+
 }
 
 class Entity {
@@ -515,7 +568,7 @@ class Entity {
 	aabb = null
 	level = null
 	on_Floor = false
-	jump_Height = 4
+	jump_Height = 6
 	vel = {
 		x: 0, y: 0
 	}
@@ -530,8 +583,8 @@ class Entity {
 		this.x = x
 		this.y = y
 
-		this.aabb.position.x = this.x - this.aabb.size.x / 2
-		this.aabb.position.y = this.y - this.aabb.size.y / 2
+		this.aabb.position.x = this.x// - this.aabb.size.x / 2
+		this.aabb.position.y = this.y// - this.aabb.size.y / 2
 	}
 
 	render() {
@@ -546,8 +599,8 @@ class Entity {
 
 		if (this.on_Floor == false) {
 			
-			if (this.vel.y < 5.0)
-				this.vel.y += 2 * 0.03
+			if (this.vel.y < 3.0)
+				this.vel.y += 1 * 0.3
 		
 		}
 
@@ -643,6 +696,17 @@ class Player extends Mob {
 
 		this.sprite.scaleX = 1.5
 		this.sprite.scaleY = 1.5
+
+		this.tool_Sprite = new Sprite()
+		this.tool_Sprite.region.x = 0
+		this.tool_Sprite.region.y = 16
+		this.tool_Sprite.region.w = 8
+		this.tool_Sprite.region.h = 8
+
+		this.tool_Sprite.scaleX = 1.8
+		this.tool_Sprite.scaleY = 1.8
+
+		this.tool_Sprite.offsetX = -16
 	}
 
 	render() {
@@ -665,11 +729,27 @@ class Player extends Mob {
 
 		this.sprite.render()
 
+		// draw Tool Sprite
+
+		if (mouse.x < this.tool_Sprite.x)
+			this.tool_Sprite.flipV = true
+
+		if (mouse.x > this.tool_Sprite.x)
+			this.tool_Sprite.flipV = false
+
+		this.tool_Sprite.x = this.sprite.x
+		this.tool_Sprite.y = this.sprite.y
+		this.tool_Sprite.image = Resource_Loader.images[0].image
+		this.tool_Sprite.lookAt(mouse.x, mouse.y)
+
+		this.tool_Sprite.render()
+
 		// draw AABB
 
 		gfx.strokeStyle = "white"
+		gfx.lineWidth = 2
 
-		gfx.strokeRect((this.x - this.aabb.size.x / 2) - this.level.scrollX, (this.y - this.aabb.size.y / 2) - this.level.scrollY, this.aabb.size.x, this.aabb.size.y)
+		//gfx.strokeRect((this.aabb.position.x) - this.level.scrollX, (this.aabb.position.y) - this.level.scrollY, this.aabb.size.x, this.aabb.size.y)
 	}
 
 	update(ticks) {
@@ -680,13 +760,13 @@ class Player extends Mob {
 			y: 0
 		}
 
-		if (keyboard.ArrowLeft)
+		if (keyboard.KeyA)
 			impulse.x = -1
 
-		if (keyboard.ArrowRight)
+		if (keyboard.KeyD)
 			impulse.x = 1
 
-		if (keyboard.ArrowUp && this.on_Floor)
+		if (keyboard.Space && this.on_Floor)
 			this.vel.y = -this.jump_Height
 
 		this.vel.x = impulse.x
@@ -718,22 +798,19 @@ class Game {
 	}
 
 	drawTitleScreen() {
-
-		gfx.font = "48px NanumPenScript"
-		gfx.imageSmoothingEnabled = false
 		
 		for (let index = 0; index < this.menu_Options.length; index++) {
-			gfx.fillStyle = "white"
+			var color = "white"
 
 			var option_Rect = new Rect(100, (100 - 28) + (index * 28), 24 * this.menu_Options[index].length, 24)
 
 			if (this.menu_Selection == index) {
-				gfx.fillStyle = "yellow"
+				color = "yellow"
 
 				gfx.drawImage(Resource_Loader.images[0].image, 0, 16, 8, 8, 80, 74 + (this.menu_Selection * 24), 16, 16)
 			}
 		
-			gfx.fillText(this.menu_Options[index], option_Rect.x, option_Rect.y + 28)
+			Text.render(this.menu_Options[index], option_Rect.x, option_Rect.y + 28, 24, color)
 
 			if (option_Rect.collides(new Rect(mouse.x, mouse.y, 1, 1))) {
 				this.menu_Selection = index
@@ -750,6 +827,7 @@ class Game {
 
 	render() {
 
+		gfx.imageSmoothingEnabled = false
 		gfx.setTransform(1, 0, 0, 1, 0, 0)
 
 		gfx.clearRect(0, 0, canvas.width, canvas.height)
@@ -761,6 +839,8 @@ class Game {
 			this.level.render()
 		else
 			this.drawTitleScreen()
+
+		Text.render(`${this.framerate}`, 16, 32, 32)
 	}
 
 	update(ticks) {
@@ -773,19 +853,26 @@ class Game {
 			this.current_Frame = Date.now()
 			this.tick_Frame = (this.current_Frame - this.last_Frame)
 			
-			if (this.tick_Frame >= 1 / prefs.framerate) {
+			if (this.tick_Frame >= 1000 / prefs.framerate) {
 
-				this.framerate = this.tick_Frame
+				this.framerate = Math.floor(this.tick_Frame)
 
 				//console.log(prefs.framerate / this.tick_Frame)
 
 				this.update(prefs.framerate / this.tick_Frame)
 
-				this.last_Frame = this.current_Frame - (this.tick_Frame % (1 / prefs.framerate))
+				
+
+				this.last_Frame = this.current_Frame - (this.tick_Frame % (1000 / prefs.framerate))
 
 			}
 
 			this.render()
+
+			//this.update(time)
+			//this.render()
+
+
 
 			requestAnimationFrame(loop)
 		}
@@ -799,16 +886,17 @@ var game = new Game()
 function main() {
 
 	document.addEventListener("keydown", function(ev) {
-		keyboard[ev.key] = true
-		keyboard.pressed[ev.key] = true
+		keyboard[ev.code] = true
+		keyboard.pressed[ev.code] = true
 
 		setTimeout(() => {
-			keyboard.pressed[ev.key] = false
+			keyboard.pressed[ev.code] = false
 		}, 1000 / prefs.framerate)
 	})
 
 	document.addEventListener("keyup", function(ev) {
-		keyboard[ev.key] = false
+
+		keyboard[ev.code] = false
 	})
 
 	canvas.addEventListener("mousemove", (ev) => {
