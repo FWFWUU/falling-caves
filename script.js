@@ -1,17 +1,93 @@
 const canvas = document.querySelector("canvas")
 const gfx = canvas.getContext("2d")
-const keyboard = {
-	pressed: {}
-}
-const mouse = {
-	x: 0,
-	y: 0
-}
 
 var prefs = {
-	framerate: 60.0,
-	showChunksLimit: 3
+	showChunksLimit: 1
+}
 
+class InputEventEstate {
+	static keyboard = {
+		keyNames: {},
+		keyPressed: false,
+		keyReleased: false
+	}
+
+	static cursor = {
+		buttonIndices: {},
+		buttonPressed: false,
+		buttonReleased: false,
+		x: 0,
+		y: 0
+	}
+
+	static touch = {
+		moving: false,
+		touches: 0
+	}
+
+	static ACTION_DELAY = 10
+
+	
+
+	static GetAction(key_Name) {
+		if (key_Name in InputEventEstate.keyboard.keyNames)
+			return InputEventEstate.keyboard.keyNames[key_Name]
+
+		return false
+	}
+
+	static GetActionPressed(key_Name) {
+		if (InputEventEstate.keyboard.keyPressed == true)
+			return InputEventEstate.GetAction(key_Name)
+
+		return false
+	}
+
+	static GetActionRelease(key_Name) {
+		if (InputEventEstate.keyboard.keyReleased == true)
+			return InputEventEstate.GetAction(key_Name)
+
+		return false
+	}
+
+	static GetMouseOffset(relative_x = 0, relative_y = 0) {
+		return new Point(InputEventEstate.cursor.x + relative_x, InputEventEstate.cursor.y + relative_y)
+	}
+
+	static GetMouseButton(button_Index) {
+		if (button_Index in InputEventEstate.cursor.buttonIndices)
+			return InputEventEstate.cursor.buttonIndices[button_Index]
+
+		return false
+	}
+
+	static GetMouseButtonPressed(button_Index) {
+		if (InputEventEstate.cursor.buttonPressed == true)
+			return InputEventEstate.GetMouseButton(button_Index)
+
+		return false
+	}
+
+	static GetMouseButtonRelease(button_Index) {
+		if (InputEventEstate.cursor.buttonReleased == true)
+			return InputEventEstate.GetMouseButton(button_Index)
+
+		return false
+	}
+}
+
+Math.lerp = function(x, y, s) {
+	return x + s * (y - x)
+}
+
+Math.clamp = function(v, mn, mx) {
+	if (v < mn)
+		return mn
+
+	else if (v > mx)
+		return mx
+
+	return v
 }
 
 class Resource_Loader {
@@ -79,7 +155,7 @@ class Noise {
 	cells = new Array()
 	spawn = null
 
-	static  Type_Air = 0
+	static Type_Air = 0
 	static Type_Solid = 1
 
 	constructor(w, h) {
@@ -232,9 +308,34 @@ class Noise {
 			}
 		}
 	}
+}
 
-	static lerp(x, y, s) {
-		return x + s * (y - x)
+class Color {
+	constructor(r, g, b, a = 1) {
+		this.r = r
+		this.g = g
+		this.b = b
+		this.a = a
+	}
+
+	sub(r, g, b, a) {
+		this.r = Math.clamp(this.r - r, 0, 255)
+		this.g = Math.clamp(this.g - g, 0, 255)
+		this.b = Math.clamp(this.b - b, 0, 255)
+		this.a = Math.clamp(this.a - a, 0, 1)
+
+		return this //new Color(this.r, this.g, this.b, this.a)
+	}
+
+	getString() {
+		return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`
+	}
+}
+
+class Point {
+	constructor(x = 0, y = 0) {
+		this.x = x
+		this.y = y
 	}
 }
 
@@ -249,25 +350,27 @@ class Particle {
 	static getColor(type) {
 		switch (type) {
 			case Particle.Type_Water:
-				return "rgb(100, 100, 200)"
+				return new Color(100, 100, 200)
 				break;
 
 			case Particle.Type_Stone:
-				return "rgb(100, 100, 100)"
+				return new Color(100, 100, 100)
 				break;
 
 			case Particle.Type_Grass:
-				return "rgb(125, 150, 25)"
+				return new Color(125, 150, 25)
 				break;
 
 			case Particle.Type_Sand:
-				return "rgb(242, 255, 198)"
+				return new Color(242, 255, 198)
 				break;
 
 			case Particle.Type_Dirt:
-				return "rgb(125, 50, 25)"
+				return new Color(125, 50, 25)
 				break;
 		}
+
+		return new Color(0, 0, 0, 0)
 	}
 
 	static mayPass(type) {
@@ -294,30 +397,86 @@ class Chunk {
 	}
 
 	render() {
-		for (let x = 0; x < Level.chunkSize; x++) {
-			for (let y = 0; y < this.level.h; y++) {
-				var pixel = this.level.getPixel(x + this.x1, y)
+
+		//gfx.strokeStyle  = "white"
+		//gfx.strokeRect(this.x1 * Level.pixelSize - this.level.scrollX, 0 - this.level.scrollY, Level.chunkSize * Level.pixelSize, this.level.h * Level.pixelSize)
+
+		var xp = Math.floor((this.level.player.x) / Level.pixelSize)
+		var yp = Math.floor((this.level.player.y) / Level.pixelSize)
+
+		for (let xradius = -this.level.light_Radius; xradius < this.level.light_Radius + 1; xradius++) {
+
+			for (let yradius = -this.level.light_Radius; yradius < this.level.light_Radius + 1; yradius++) {
+
+				var pixel = this.level.getPixel((xp + xradius),
+					yp + yradius)
+
+				var d = Math.floor(Math.abs(xradius) * Math.abs(yradius) + Math.abs(xradius) * Math.abs(yradius))
 
 				if (pixel == Particle.Type_Air)
 					continue
 
-				gfx.fillStyle = Particle.getColor(pixel)
+				gfx.fillStyle = Particle.getColor(pixel).sub(d, d, d, 0).getString()
 				
-				gfx.fillRect(((x * Level.pixelSize) + (this.x1 * Level.pixelSize)) - this.level.scrollX,
-					(y * Level.pixelSize) - this.level.scrollY, Level.pixelSize, Level.pixelSize)
+				var pixel_At = new Point( ((xp + xradius) * Level.pixelSize) - this.level.scrollX,
+					((yp + yradius) * Level.pixelSize) - this.level.scrollY )
+
+				gfx.fillRect(pixel_At.x, pixel_At.y, Level.pixelSize, Level.pixelSize)
+
+
 			}
 		}
+		
+	}
 
-		/*for (let x = 0; x < this.noise.w; x++) {
-			for (let y = 0; y < this.noise.h; y++) {
-				if (this.getPixel(x, y) == Particle.Type_Air)
-					continue
+	startSimulation(ticks) {
+		var that = this
+		var delay = 100
 
-				gfx.fillStyle = Particle.getColor(this.getPixel(x, y))
-				
-				gfx.fillRect((x * Level.pixelSize) - this.scrollX, (y * Level.pixelSize) - this.scrollY, Level.pixelSize, Level.pixelSize)
+		for (let x = 0; x < Level.chunkSize; x++) {
+			for (let y = 0; y < this.level.h; y++) {
+				if (this.level.getPixel(x + this.x1, y) == Particle.Type_Water) {
+					if (this.level.getPixel(x + this.x1, y + 1) == Particle.Type_Air) {
+						
+						setTimeout(function() {
+							that.level.pixels[(x + that.x1) + (y) * that.level.noise.w] = Particle.Type_Air
+							that.level.pixels[(x + that.x1) + (y + 1) * that.level.noise.w] = Particle.Type_Water
+						}, delay)
+					}
+
+					else if (this.level.getPixel(x + this.x1, y + 1) == Particle.Type_Water) {
+
+						if (this.level.getPixel((x + 1) + this.x1, y + 1) == Particle.Type_Air)
+							setTimeout(function() {
+								that.level.pixels[(x + that.x1) + (y) * that.level.noise.w] = Particle.Type_Air
+								that.level.pixels[((x + 1) + that.x1) + (y + 1) * that.level.noise.w] = Particle.Type_Water
+							}, delay)
+
+						else if (this.level.getPixel((x - 1) + this.x1, y + 1) == Particle.Type_Air)
+							setTimeout(function() {
+								that.level.pixels[(x + that.x1) + (y) * that.level.noise.w] = Particle.Type_Air
+								that.level.pixels[((x - 1) + that.x1) + (y + 1) * that.level.noise.w] = Particle.Type_Water
+							}, delay)
+
+						else if (this.level.getPixel((x + 1) + this.x1, y) == Particle.Type_Air)
+							setTimeout(function() {
+								that.level.pixels[(x + that.x1) + y * that.level.noise.w] = Particle.Type_Air
+								that.level.pixels[((x + 1) + that.x1) + y * that.level.noise.w] = Particle.Type_Water
+							}, delay)
+
+						else if (this.level.getPixel((x - 1) + this.x1, y) == Particle.Type_Air)
+							setTimeout(function() {
+								that.level.pixels[(x + that.x1) + y * that.level.noise.w] = Particle.Type_Air
+								that.level.pixels[((x - 1) + that.x1) + y * that.level.noise.w] = Particle.Type_Water
+							}, delay)
+					}
+				}
 			}
-		}*/
+		}
+	}
+
+	update(ticks) {
+		this.startSimulation(ticks)
 	}
 }
 
@@ -325,7 +484,7 @@ class Level {
 	w = 0
 	h = 0
 	pixels = new Array()
-	static chunkSize = 32
+	static chunkSize = 12
 	noise = null
 	scrollX = 0
 	scrollY = 0
@@ -347,6 +506,8 @@ class Level {
 		this.addEntity(this.player)
 
 		this.chunks.length = this.noise.w
+
+		this.light_Radius = 21
 
 		for (let x = 0; x < this.chunks.length; x++) {
 			var chunk = new Chunk(x, 0, x * Level.chunkSize, this.h)
@@ -392,7 +553,7 @@ class Level {
 					if (this.pixels[x + (y - 1) * this.noise.w] == Noise.Type_Air)
 						this.pixels[x + (y - 1) * this.noise.w] = Particle.Type_Grass
 
-					if (Math.random() * 8 < 2) {
+					if (Math.random() * 86 > 12) {
 						if (this.pixels[x + (y - 2) * this.noise.w] == Noise.Type_Air)
 							this.pixels[x + (y - 2) * this.noise.w] = Particle.Type_Water
 					}	
@@ -410,7 +571,7 @@ class Level {
 	}
 
 	getPixel(x, y) {
-		if (x < 0 || y < 0 || x >= this.noise.w || y >= this.noise.h)
+		if (x < 0 || y < 0 || x >= this.noise.w || y >= this.h)
 			return Particle.Type_Air
 
 		return this.pixels[x + y * this.noise.w]
@@ -430,7 +591,7 @@ class Level {
 			var xc = Math.floor(e.x / (Level.chunkSize * Level.pixelSize))
 
 			if (Player.prototype.isPrototypeOf(e)) {
-				for (let dist = -prefs.showChunksLimit; dist < prefs.showChunksLimit; dist++) {
+				for (let dist = -prefs.showChunksLimit; dist < prefs.showChunksLimit + 1; dist++) {
 
 					var nearChunk = this.getChunk(xc + dist)
 
@@ -454,6 +615,17 @@ class Level {
 			if (Player.prototype.isPrototypeOf(e)) {
 				this.scrollX = Math.floor(e.x - canvas.width / 2)
 				this.scrollY = Math.floor(e.y - canvas.height / 2)
+
+				var xc = Math.floor(e.x / (Level.chunkSize * Level.pixelSize))
+
+				for (let dist = -prefs.showChunksLimit; dist < prefs.showChunksLimit + 1; dist++) {
+					
+					var near_Chunk = this.getChunk(xc + dist)
+
+					if (near_Chunk) {
+						near_Chunk.update(ticks)
+					}
+				}
 			}
 
 			e.update(ticks)
@@ -536,8 +708,8 @@ class Sprite {
 		gfx.restore()
 	}
 
-	lookAt(x, y) {
-		var dist = {x: this.x - x, y: this.y - y}
+	lookAt(point) {
+		var dist = {x: this.x - point.x, y: this.y - point.y}
 		var angle = Math.atan2(-dist.y, -dist.x)
 
 		this.rotation_degrees = (180 * angle / Math.PI)
@@ -572,8 +744,13 @@ class Projectile {
 		this.level = null
 		this.direction = direction
 		this.angle = Math.atan2(-(this.y - this.direction.y), -(this.x - this.direction.x))
+		this.life_Time = 2
 
 		Projectile.projectiles.push(this)
+
+		var that = this
+
+		setTimeout(() => {that.destroy()}, this.life_Time * 1000)
 	}
 
 	render() {
@@ -581,8 +758,8 @@ class Projectile {
 	}
 
 	move() {
-		this.vel.x = Math.cos(this.angle) * Noise.lerp(0, 5, 20 * 0.09)
-		this.vel.y = Math.sin(this.angle) * Noise.lerp(0, 5, 20 * 0.09)
+		this.vel.x = Math.cos(this.angle) * Math.lerp(0, 5, 20 * 0.09)
+		this.vel.y = Math.sin(this.angle) * Math.lerp(0, 5, 20 * 0.09)
 
 		//this.angle = Math.atan2(-(this.y - this.direction.y), -(this.x - this.direction.x))
 
@@ -800,7 +977,7 @@ class Player extends Mob {
 
 	render() {
 
-		if (this.direction == Mob.Direction_Right) {
+		/*if (this.direction == Mob.Direction_Right) {
 			this.sprite.region.x = 0
 			this.sprite.region.y = 0
 		}
@@ -808,7 +985,7 @@ class Player extends Mob {
 		if (this.direction == Mob.Direction_Left) {
 			this.sprite.region.x = 8
 			this.sprite.region.y = 0
-		}
+		}*/
 
 		// draw sprite with transforms
 
@@ -820,16 +997,11 @@ class Player extends Mob {
 
 		// draw Tool Sprite
 
-		if (mouse.x < this.tool_Sprite.x)
-			this.tool_Sprite.flipV = true
-
-		if (mouse.x > this.tool_Sprite.x)
-			this.tool_Sprite.flipV = false
+		this.sprite.flipH = this.tool_Sprite.flipV
 
 		this.tool_Sprite.x = this.sprite.x
 		this.tool_Sprite.y = this.sprite.y
 		this.tool_Sprite.image = Resource_Loader.images[0].image
-		this.tool_Sprite.lookAt(mouse.x, mouse.y)
 
 		this.tool_Sprite.render()
 
@@ -844,27 +1016,38 @@ class Player extends Mob {
 	update(ticks) {
 		super.update(ticks)
 
+		if (InputEventEstate.GetMouseOffset().x < this.tool_Sprite.x)
+			this.tool_Sprite.flipV = true
+
+		if (InputEventEstate.GetMouseOffset().x > this.tool_Sprite.x)
+			this.tool_Sprite.flipV = false
+
+		this.tool_Sprite.lookAt(InputEventEstate.GetMouseOffset())
+
 		var impulse = {
 			x: 0,
 			y: 0
 		}
 
-		if (keyboard.KeyA)
+		if (InputEventEstate.GetAction("KeyA") || GamePad.Btn_Left)
 			impulse.x = -1
 
-		if (keyboard.KeyD)
+		if (InputEventEstate.GetAction("KeyD") || GamePad.Btn_Right)
 			impulse.x = 1
 
-		if (keyboard.Space && this.on_Floor)
+		if ((InputEventEstate.GetAction("Space") || GamePad.Btn_Up) && this.on_Floor)
 			this.vel.y = -this.jump_Height
 
-		this.vel.x = Noise.lerp(this.vel.x, impulse.x * 4, ticks * 0.80)
+		this.vel.x = Math.lerp(this.vel.x, impulse.x * 4, ticks * 2)
 
 		this.move(this.vel.x, this.vel.y)
 
-		if (mouse.pressed) {
+		if (InputEventEstate.GetMouseButtonPressed(0)) {
+
+			var target = InputEventEstate.GetMouseOffset(this.level.scrollX, this.level.scrollY)
+
 			var explosion_Projectile = new ExplosionProjectile(this.x, this.y, {
-				x: mouse.x + this.level.scrollX, y: mouse.y + this.level.scrollY
+				x: target.x, y: target.y
 			})
 			explosion_Projectile.level = this.level
 		}
@@ -894,9 +1077,68 @@ class Timer {
 	}
 }
 
+class GamePad {
+
+	static Joy_Direction_Left = 0
+	static Joy_Direction_Right = 1
+	static Joy_Direction_Up = 2
+	static Joy_Direction_Down = 3
+
+	static Btn_Left = false
+	static Btn_Right = false
+	static Btn_Up = false
+
+	constructor() {
+		this.cursor_Angle = 0.0
+		this.direction_Button = GamePad.Joy_Direction_Up
+		this.button_Scale = 1
+
+		this.button_Left = new Rect(100 - 32, canvas.height - 32 * this.button_Scale, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Right = new Rect(100 + 32, canvas.height - 32 * this.button_Scale, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Up = new Rect(100, canvas.height - (32 + 32) * this.button_Scale, 32 * this.button_Scale, 32 * this.button_Scale)
+
+
+	}
+
+	drawJoys() {
+		gfx.strokeStyle = "white"
+		
+		gfx.strokeRect(this.button_Left.x, this.button_Left.y, this.button_Left.w, this.button_Left.h)
+
+		gfx.strokeRect(this.button_Right.x, this.button_Right.y, this.button_Right.w, this.button_Right.h)
+
+		gfx.strokeRect(this.button_Up.x, this.button_Up.y, this.button_Up.w, this.button_Up.h)
+	}
+
+	render() {
+		this.drawJoys()
+	}
+
+	update(ticks) {
+
+		GamePad.Btn_Left = false
+		GamePad.Btn_Right = false
+		GamePad.Btn_Up = false
+
+		var mouse = InputEventEstate.GetMouseOffset()
+
+		var mouse_Rect = new Rect(mouse.x, mouse.y, 1, 1)
+
+		if (this.button_Left.collides(mouse_Rect))
+			GamePad.Btn_Left = true
+
+		if (this.button_Right.collides(mouse_Rect))
+			GamePad.Btn_Right = true
+
+		if (this.button_Up.collides(mouse_Rect))
+			GamePad.Btn_Up = true
+
+	}
+}
+
 class Game {
 	level = null
-	last_Frame = 0
+	last_Frame = performance.now()
 	current_Frame = 0
 	tick_Frame = 0
 	framerate = 0
@@ -913,6 +1155,7 @@ class Game {
 		this.menu_Options[2] = "Settings"
 
 		this.fade_Timer = new Timer()
+		this.gamePad = new GamePad()
 	}
 
 	init() {
@@ -932,15 +1175,18 @@ class Game {
 				gfx.drawImage(Resource_Loader.images[0].image, 0, 16, 8, 8, 80, option_Rect.y, 16, 16)
 			}
 
-			gfx.strokeStyle = "white"
+			//gfx.strokeStyle = "white"
 
-			gfx.strokeRect(option_Rect.x, option_Rect.y, option_Rect.w, option_Rect.h)
+			//gfx.strokeRect(option_Rect.x, option_Rect.y, option_Rect.w, option_Rect.h)
 		
 			Text.render(this.menu_Options[index], option_Rect.x, option_Rect.y + 16, 24, color)
 
+			var mouse = InputEventEstate.GetMouseOffset()
+
 			if (option_Rect.collides(new Rect(mouse.x, mouse.y, 1, 1))) {
 				this.menu_Selection = index
-				if (mouse.pressed) {
+
+				if (InputEventEstate.GetMouseButtonPressed(0)) {
 					if (this.menu_Selection == 0) {
 						this.fade_Transparency = 0
 						this.start = true
@@ -971,38 +1217,41 @@ class Game {
 		else
 			this.drawTitleScreen()
 
-		Text.render(`${this.framerate}`, 16, 32, 32)
+		Text.render(`fps: ${Math.floor(this.framerate)}`, 16, 32, 32)
+
+		this.gamePad.render()
 	}
 
 	update(ticks) {
-		this.fade_Transparency = Noise.lerp(this.fade_Transparency, 1.0, ticks * 0.5)
+		this.fade_Transparency = Math.lerp(this.fade_Transparency, 1.0, ticks * 0.5)
 
 		this.level.update(ticks)
+
+		this.gamePad.update(ticks)
 	}
 
 	run() {
 
+		const dt = 1.0 / 60.0
+
 		var loop = (time) => {
-			this.current_Frame = Date.now()
-			this.tick_Frame = (this.current_Frame - this.last_Frame)
-			
-			if (this.tick_Frame >= 1 / prefs.framerate) {
 
-				this.framerate = Math.floor(this.tick_Frame)
+			var new_Time = time
+			var frame_Time = new_Time - this.last_Frame
+			this.last_Frame = new_Time
 
-				//console.log(prefs.framerate / this.tick_Frame)
+			if (frame_Time > 0.0) {
 
-				this.update(1/ this.tick_Frame)
+				var delta_Time = Math.min(frame_Time, dt)
 
-				this.last_Frame = this.current_Frame - (this.tick_Frame % (1 / prefs.framerate))
+				this.framerate = frame_Time
 
+				this.update(delta_Time)
+
+				frame_Time -= delta_Time
 			}
 
 			this.render()
-
-			//this.update(time)
-			//this.render()
-
 
 
 			requestAnimationFrame(loop)
@@ -1016,13 +1265,16 @@ var game = new Game()
 
 function main() {
 
-	document.addEventListener("keydown", function(ev) {
+	/*document.addEventListener("keydown", function(ev) {
 		keyboard[ev.code] = true
-		keyboard.pressed[ev.code] = true
 
-		setTimeout(() => {
-			keyboard.pressed[ev.code] = false
-		}, 1000 / prefs.framerate)
+		if (!keyboard.pressed[ev.code]) {
+			keyboard.pressed[ev.code] = true
+
+			setTimeout(() => {
+				keyboard.pressed[ev.code] = false
+			}, 1000 / prefs.framerate)
+		}
 	})
 
 	document.addEventListener("keyup", function(ev) {
@@ -1038,16 +1290,94 @@ function main() {
 	canvas.addEventListener("mousedown", (ev) => {
 		mouse.button = ev.button
 		mouse.down = true
-		mouse.pressed = true
 
-		setTimeout(() => {
-			mouse.pressed = false
-		}, 1000 / prefs.framerate)
+		if (!mouse.pressed) {
+			mouse.pressed = true
+
+			setTimeout(() => {
+				mouse.pressed = false
+			}, 1000 / prefs.framerate)
+		}
 	})
 
 	canvas.addEventListener("mouseup", (ev) => {
 		mouse.button = ev.button
 		mouse.down = false
+	})*/
+
+	window.addEventListener("touchmove", function(event) {
+		InputEventEstate.touch.touches = event.touches.length
+	})
+
+	window.addEventListener("mousemove", function(event) {
+		InputEventEstate.cursor.x = event.offsetX
+		InputEventEstate.cursor.y = event.offsetY
+	})
+
+	window.addEventListener("mousedown", function(event) {
+
+		InputEventEstate.cursor.buttonIndices[event.button] = true
+
+		if (InputEventEstate.cursor.buttonPressed == false) {
+			InputEventEstate.cursor.buttonPressed = true
+
+			setTimeout(() => {
+				
+				InputEventEstate.cursor.buttonPressed = false
+
+			}, InputEventEstate.ACTION_DELAY)
+		}
+
+	})
+
+	window.addEventListener("mouseup", function(event) {
+
+		InputEventEstate.cursor.buttonIndices[event.button] = false
+
+		if (InputEventEstate.cursor.buttonReleased == false) {
+			InputEventEstate.cursor.buttonReleased = true
+
+			setTimeout(() => {
+				
+				InputEventEstate.cursor.buttonReleased = false
+
+			}, InputEventEstate.ACTION_DELAY)
+		}
+
+	})
+
+	window.addEventListener("keyup", function (event) {
+
+		InputEventEstate.keyboard.keyNames[event.code] = false
+
+
+		if (InputEventEstate.keyboard.keyReleased == false) {
+			InputEventEstate.keyboard.keyReleased = true
+
+			setTimeout(() => {
+				
+				InputEventEstate.keyboard.keyReleased = false
+
+			}, InputEventEstate.ACTION_DELAY)
+		}
+
+	})
+
+	window.addEventListener("keydown", function (event) {
+		
+		InputEventEstate.keyboard.keyNames[event.code] = true
+
+
+		if (InputEventEstate.keyboard.keyPressed == false) {
+			InputEventEstate.keyboard.keyPressed = true
+
+			setTimeout(() => {
+
+				InputEventEstate.keyboard.keyPressed = false
+
+			}, InputEventEstate.ACTION_DELAY)
+		}
+
 	})
 
 	game.init()
