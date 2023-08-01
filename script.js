@@ -1135,18 +1135,21 @@ class GamePad {
 		GamePad.Btn_Right = false
 		GamePad.Btn_Up = false
 
-		var mouse = InputEventEstate.GetTouchAt()
+		if (InputEventEstate.GetTouches() == 1) {
 
-		var mouse_Rect = new Rect(mouse.x, mouse.y, 1, 1)
+			var mouse = InputEventEstate.GetTouchAt()
 
-		if (this.button_Left.collides(mouse_Rect))
-			GamePad.Btn_Left = true
+			var mouse_Rect = new Rect(mouse.x, mouse.y, 1, 1)
 
-		if (this.button_Right.collides(mouse_Rect))
-			GamePad.Btn_Right = true
+			if (this.button_Left.collides(mouse_Rect))
+				GamePad.Btn_Left = true
 
-		if (this.button_Up.collides(mouse_Rect))
-			GamePad.Btn_Up = true
+			if (this.button_Right.collides(mouse_Rect))
+				GamePad.Btn_Right = true
+
+			if (this.button_Up.collides(mouse_Rect))
+				GamePad.Btn_Up = true
+		}
 
 	}
 }
