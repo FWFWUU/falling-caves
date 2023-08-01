@@ -1102,14 +1102,19 @@ class GamePad {
 		this.direction_Button = GamePad.Joy_Direction_Up
 		this.button_Scale = 1
 
-		this.button_Left = new Rect(100 - 32, canvas.height - 132, 32 * this.button_Scale, 32 * this.button_Scale)
-		this.button_Right = new Rect(100 + 32, canvas.height - 132, 32 * this.button_Scale, 32 * this.button_Scale)
-		this.button_Up = new Rect(100, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Left = new Rect(100 - 32, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Right = new Rect(100 + 32, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Up = new Rect(100, canvas.height - 198, 32 * this.button_Scale, 32 * this.button_Scale)
 
 
 	}
 
 	drawJoys() {
+
+		this.button_Left.y = window.innerHeight - 128
+		this.button_Right.y = window.innerHeight - 128
+		this.button_Up.y = window.innerHeight - 156
+
 		gfx.strokeStyle = "white"
 		
 		gfx.strokeRect(this.button_Left.x, this.button_Left.y, this.button_Left.w, this.button_Left.h)
@@ -1237,8 +1242,6 @@ class Game {
 		this.level.update(ticks)
 
 		this.gamePad.update(ticks)
-
-		console.log(InputEventEstate.GetTouches())
 	}
 
 	run() {
