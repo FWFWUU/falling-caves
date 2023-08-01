@@ -1100,10 +1100,10 @@ class GamePad {
 	constructor() {
 		this.cursor_Angle = 0.0
 		this.direction_Button = GamePad.Joy_Direction_Up
-		this.button_Scale = 1
+		this.button_Scale = 2
 
 		this.button_Left = new Rect(100 - 32, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
-		this.button_Right = new Rect(100 + 32, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Right = new Rect(100 + 64, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
 		this.button_Up = new Rect(0, canvas.height - 198, 32 * this.button_Scale, 32 * this.button_Scale)
 
 
