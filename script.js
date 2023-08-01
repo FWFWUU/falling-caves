@@ -5,6 +5,28 @@ var prefs = {
 	showChunksLimit: 1
 }
 
+class Point {
+	constructor(x = 0, y = 0) {
+		this.x = x
+		this.y = y
+	}
+}
+
+
+Math.lerp = function(x, y, s) {
+	return x + s * (y - x)
+}
+
+Math.clamp = function(v, mn, mx) {
+	if (v < mn)
+		return mn
+
+	else if (v > mx)
+		return mx
+
+	return v
+}
+
 class InputEventEstate {
 	static keyboard = {
 		keyNames: {},
@@ -20,14 +42,12 @@ class InputEventEstate {
 		y: 0
 	}
 
-	static touch = {
-		moving: false,
-		touches: 0
+	static touches = {
+		count: 0,
+		point: new Point(0, 0)
 	}
 
 	static ACTION_DELAY = 10
-
-	
 
 	static GetAction(key_Name) {
 		if (key_Name in InputEventEstate.keyboard.keyNames)
@@ -74,21 +94,12 @@ class InputEventEstate {
 
 		return false
 	}
+
+	static GetTouches() {
+		return InputEventEstate.touches.count
+	}
 }
 
-Math.lerp = function(x, y, s) {
-	return x + s * (y - x)
-}
-
-Math.clamp = function(v, mn, mx) {
-	if (v < mn)
-		return mn
-
-	else if (v > mx)
-		return mx
-
-	return v
-}
 
 class Resource_Loader {
 	static images = new Array
@@ -332,12 +343,6 @@ class Color {
 	}
 }
 
-class Point {
-	constructor(x = 0, y = 0) {
-		this.x = x
-		this.y = y
-	}
-}
 
 class Particle {
 	static Type_Air = Noise.Type_Air
@@ -1186,7 +1191,7 @@ class Game {
 			if (option_Rect.collides(new Rect(mouse.x, mouse.y, 1, 1))) {
 				this.menu_Selection = index
 
-				if (InputEventEstate.GetMouseButtonPressed(0)) {
+				if (InputEventEstate.GetMouseButtonPressed(0) || InputEventEstate.GetTouches() == 1) {
 					if (this.menu_Selection == 0) {
 						this.fade_Transparency = 0
 						this.start = true
@@ -1305,8 +1310,36 @@ function main() {
 		mouse.down = false
 	})*/
 
-	window.addEventListener("touchmove", function(event) {
-		InputEventEstate.touch.touches = event.touches.length
+	window.addEventListener("touchstart", function(event) {
+
+		/*for (let i = 0; i < event.targetTouches.length; i++) {
+			
+			var touch_Event = event.targetTouches[i]
+			touch_Event.Touch_Id = i
+
+			InputEventEstate.touches.push(touch_Event)
+		}*/
+
+
+		InputEventEstate.touches.count = event.targetTouches.length
+
+		var touch = event.targetTouches[(event.targetTouches.length - 1) % 100]
+
+		InputEventEstate.touches.point = new Point(Math.floor(touch.clientX), Math.floor(touch.clientY))
+
+	})
+
+	window.addEventListener("touchend", function(event) {
+		//event.preventDefault()
+		/*for (let i = 0; i < event.targetTouches.length; i++) {
+			var index = InputEventEstate.touches.indexOf(event.targetTouches[i])
+
+			if (index > -1) {
+				InputEventEstate.touches.splice(index, 1)
+			}
+		}*/
+
+		InputEventEstate.touches.count--
 	})
 
 	window.addEventListener("mousemove", function(event) {
@@ -1328,6 +1361,10 @@ function main() {
 			}, InputEventEstate.ACTION_DELAY)
 		}
 
+	})
+
+	window.addEventListener("dblclick", function(event) {
+		event.preventDefault()
 	})
 
 	window.addEventListener("mouseup", function(event) {
