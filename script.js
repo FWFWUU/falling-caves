@@ -98,6 +98,10 @@ class InputEventEstate {
 	static GetTouches() {
 		return InputEventEstate.touches.count
 	}
+
+	static GetTouchAt() {
+		return InputEventEstate.touches.point
+	}
 }
 
 
@@ -1047,7 +1051,7 @@ class Player extends Mob {
 
 		this.move(this.vel.x, this.vel.y)
 
-		if (InputEventEstate.GetMouseButtonPressed(0)) {
+		if (InputEventEstate.GetMouseButtonPressed(0) || InputEventEstate.GetTouches() == 2) {
 
 			var target = InputEventEstate.GetMouseOffset(this.level.scrollX, this.level.scrollY)
 
@@ -1098,9 +1102,9 @@ class GamePad {
 		this.direction_Button = GamePad.Joy_Direction_Up
 		this.button_Scale = 1
 
-		this.button_Left = new Rect(100 - 32, canvas.height - 32 * this.button_Scale, 32 * this.button_Scale, 32 * this.button_Scale)
-		this.button_Right = new Rect(100 + 32, canvas.height - 32 * this.button_Scale, 32 * this.button_Scale, 32 * this.button_Scale)
-		this.button_Up = new Rect(100, canvas.height - (32 + 32) * this.button_Scale, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Left = new Rect(100 - 32, canvas.height - 132, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Right = new Rect(100 + 32, canvas.height - 132, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Up = new Rect(100, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
 
 
 	}
@@ -1125,7 +1129,7 @@ class GamePad {
 		GamePad.Btn_Right = false
 		GamePad.Btn_Up = false
 
-		var mouse = InputEventEstate.GetMouseOffset()
+		var mouse = InputEventEstate.GetTouchAt()
 
 		var mouse_Rect = new Rect(mouse.x, mouse.y, 1, 1)
 
@@ -1233,6 +1237,8 @@ class Game {
 		this.level.update(ticks)
 
 		this.gamePad.update(ticks)
+
+		console.log(InputEventEstate.GetTouches())
 	}
 
 	run() {
@@ -1312,34 +1318,33 @@ function main() {
 
 	window.addEventListener("touchstart", function(event) {
 
-		/*for (let i = 0; i < event.targetTouches.length; i++) {
-			
-			var touch_Event = event.targetTouches[i]
-			touch_Event.Touch_Id = i
-
-			InputEventEstate.touches.push(touch_Event)
-		}*/
-
-
-		InputEventEstate.touches.count = event.targetTouches.length
+		InputEventEstate.touches.count++
 
 		var touch = event.targetTouches[(event.targetTouches.length - 1) % 100]
+
+		InputEventEstate.touches.point = new Point(Math.floor(touch.clientX), Math.floor(touch.clientY))
+
+		var last = InputEventEstate.touches.count
+
+		setTimeout(() => {
+			if (last == InputEventEstate.touches.count)
+				InputEventEstate.touches.count = 0
+		}, InputEventEstate.ACTION_DELAY + 200)
+
+	})
+
+	window.addEventListener("touchmove", function(event) {
+
+		var touch = event.targetTouches[(event.targetTouches.length - 1)]
 
 		InputEventEstate.touches.point = new Point(Math.floor(touch.clientX), Math.floor(touch.clientY))
 
 	})
 
 	window.addEventListener("touchend", function(event) {
-		//event.preventDefault()
-		/*for (let i = 0; i < event.targetTouches.length; i++) {
-			var index = InputEventEstate.touches.indexOf(event.targetTouches[i])
+		
+		//InputEventEstate.touches.point = new Point(0, 0)
 
-			if (index > -1) {
-				InputEventEstate.touches.splice(index, 1)
-			}
-		}*/
-
-		InputEventEstate.touches.count--
 	})
 
 	window.addEventListener("mousemove", function(event) {
