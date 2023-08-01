@@ -44,7 +44,8 @@ class InputEventEstate {
 
 	static touches = {
 		count: 0,
-		point: new Point(0, 0)
+		point: new Point(0, 0),
+		pressed: false
 	}
 
 	static ACTION_DELAY = 10
@@ -101,6 +102,10 @@ class InputEventEstate {
 
 	static GetTouchAt() {
 		return InputEventEstate.touches.point
+	}
+
+	static GetTouchPressed() {
+		return InputEventEstate.touches.pressed
 	}
 }
 
@@ -1135,7 +1140,7 @@ class GamePad {
 		GamePad.Btn_Right = false
 		GamePad.Btn_Up = false
 
-		if (InputEventEstate.GetTouches() == 1) {
+		if (InputEventEstate.GetTouchPressed()) {
 
 			var mouse = InputEventEstate.GetTouchAt()
 
@@ -1333,6 +1338,8 @@ function main() {
 
 		var last = InputEventEstate.touches.count
 
+		InputEventEstate.touches.pressed = true
+
 		setTimeout(() => {
 			if (last == InputEventEstate.touches.count)
 				InputEventEstate.touches.count = 0
@@ -1350,7 +1357,7 @@ function main() {
 
 	window.addEventListener("touchend", function(event) {
 		
-		//InputEventEstate.touches.point = new Point(0, 0)
+		InputEventEstate.touches.pressed = false
 
 	})
 
