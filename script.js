@@ -1104,7 +1104,7 @@ class GamePad {
 
 		this.button_Left = new Rect(100 - 32, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
 		this.button_Right = new Rect(100 + 32, canvas.height - 164, 32 * this.button_Scale, 32 * this.button_Scale)
-		this.button_Up = new Rect(100, canvas.height - 198, 32 * this.button_Scale, 32 * this.button_Scale)
+		this.button_Up = new Rect(0, canvas.height - 198, 32 * this.button_Scale, 32 * this.button_Scale)
 
 
 	}
@@ -1114,6 +1114,7 @@ class GamePad {
 		this.button_Left.y = window.innerHeight - 128
 		this.button_Right.y = window.innerHeight - 128
 		this.button_Up.y = window.innerHeight - 156
+		this.button_Up.x = window.innerWidth - 156
 
 		gfx.strokeStyle = "white"
 		
