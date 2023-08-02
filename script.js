@@ -42,11 +42,12 @@ class InputEventEstate {
 		y: 0
 	}
 
-	static touches = {
-		count: 0,
-		point: new Point(0, 0),
-		pressed: false
-	}
+	static touch_Cursor_Angle = 0.0
+	static touch_Cursor_Up = false
+	static touch_Cursor_Direction = new Point(0, 0)
+	static touch_Count = 0
+	static touch_Cursor_Atack_Mode = false
+	static touch_Cursor_Motion = new Point(0, 0)
 
 	static ACTION_DELAY = 10
 
@@ -97,15 +98,15 @@ class InputEventEstate {
 	}
 
 	static GetTouches() {
-		return InputEventEstate.touches.count
+		return InputEventEstate.touch_Count
 	}
 
 	static GetTouchAt() {
-		return InputEventEstate.touches.point
+		return new Point(0, 0)
 	}
 
 	static GetTouchPressed() {
-		return InputEventEstate.touches.pressed
+		return false
 	}
 }
 
@@ -415,8 +416,40 @@ class Chunk {
 		//gfx.strokeStyle  = "white"
 		//gfx.strokeRect(this.x1 * Level.pixelSize - this.level.scrollX, 0 - this.level.scrollY, Level.chunkSize * Level.pixelSize, this.level.h * Level.pixelSize)
 
+
+		const radius = 4
+
+		for (let x = 0; x < Level.chunkSize; x++) {
+			for (let y = 0; y < this.level.h; y++) {
+				var pixel = this.level.getPixel(x + this.x1, y)
+
+				if (pixel == Particle.Type_Water) {
+
+					for (let xr = -radius; xr < radius + 1; xr++) {
+						for (let yr = -radius; yr < radius + 1; yr++) {
+							var _pixel = this.level.getPixel((x + this.x1) + xr, y + yr)
+
+							var dist = (xr * xr) + (yr * yr)
+
+							if (_pixel == Particle.Type_Air)
+								continue
+
+							
+
+							gfx.fillStyle = Particle.getColor(_pixel).sub(dist * 10, dist * 10, 0, 0).getString()
+							gfx.fillRect((((x + this.x1) + xr) * Level.pixelSize) - this.level.scrollX, ((y + yr) * Level.pixelSize) - this.level.scrollY, Level.pixelSize, Level.pixelSize)
+							
+						}
+					}
+
+				}
+			}
+		}
+
 		var xp = Math.floor((this.level.player.x) / Level.pixelSize)
 		var yp = Math.floor((this.level.player.y) / Level.pixelSize)
+
+		const lights = new Array()
 
 		for (let xradius = -this.level.light_Radius; xradius < this.level.light_Radius + 1; xradius++) {
 
@@ -425,18 +458,23 @@ class Chunk {
 				var pixel = this.level.getPixel((xp + xradius),
 					yp + yradius)
 
-				var d = Math.floor(Math.abs(xradius) * Math.abs(yradius) + Math.abs(xradius) * Math.abs(yradius))
+				var d = (xradius * xradius) + (yradius * yradius)//Math.floor(Math.abs(xradius) * Math.abs(yradius) + Math.abs(xradius) * Math.abs(yradius))
+
+				if (d > this.level.light_Radius * this.level.light_Radius)
+					continue
 
 				if (pixel == Particle.Type_Air)
 					continue
 
-				gfx.fillStyle = Particle.getColor(pixel).sub(d, d, d, 0).getString()
+				const color = Particle.getColor(pixel).sub(d / 5, d / 5, d * 10, 0)
+
+				gfx.fillStyle = color.getString()
 				
 				var pixel_At = new Point( ((xp + xradius) * Level.pixelSize) - this.level.scrollX,
 					((yp + yradius) * Level.pixelSize) - this.level.scrollY )
 
 				gfx.fillRect(pixel_At.x, pixel_At.y, Level.pixelSize, Level.pixelSize)
-
+				//lights.push([new Point(xp + xradius, (yp + yradius)), color])
 
 			}
 		}
@@ -1030,40 +1068,73 @@ class Player extends Mob {
 	update(ticks) {
 		super.update(ticks)
 
-		if (InputEventEstate.GetMouseOffset().x < this.tool_Sprite.x)
-			this.tool_Sprite.flipV = true
+		if (Game.is_Mobile) {
+			if (Math.abs(InputEventEstate.touch_Cursor_Angle) > 90)
+				this.tool_Sprite.flipV = true
 
-		if (InputEventEstate.GetMouseOffset().x > this.tool_Sprite.x)
-			this.tool_Sprite.flipV = false
+			if (Math.abs(InputEventEstate.touch_Cursor_Angle) < 90)
+				this.tool_Sprite.flipV = false
 
-		this.tool_Sprite.lookAt(InputEventEstate.GetMouseOffset())
+			this.tool_Sprite.rotation_degrees = InputEventEstate.touch_Cursor_Angle
+		} else {
+			if (InputEventEstate.GetMouseOffset().x < this.tool_Sprite.x)
+				this.tool_Sprite.flipV = true
+
+			if (InputEventEstate.GetMouseOffset().x > this.tool_Sprite.x)
+				this.tool_Sprite.flipV = false
+
+			this.tool_Sprite.lookAt(InputEventEstate.GetMouseOffset())
+		}
 
 		var impulse = {
 			x: 0,
 			y: 0
 		}
 
-		if (InputEventEstate.GetAction("KeyA") || GamePad.Btn_Left)
+		if (InputEventEstate.GetAction("KeyA") || InputEventEstate.touch_Cursor_Direction.x < 0)
 			impulse.x = -1
 
-		if (InputEventEstate.GetAction("KeyD") || GamePad.Btn_Right)
+		if (InputEventEstate.GetAction("KeyD") || InputEventEstate.touch_Cursor_Direction.x > 0)
 			impulse.x = 1
 
-		if ((InputEventEstate.GetAction("Space") || GamePad.Btn_Up) && this.on_Floor)
+		if ((InputEventEstate.GetAction("Space") || InputEventEstate.touch_Cursor_Direction.y < 0) && this.on_Floor)
 			this.vel.y = -this.jump_Height
 
 		this.vel.x = Math.lerp(this.vel.x, impulse.x * 4, ticks * 2)
 
 		this.move(this.vel.x, this.vel.y)
 
-		if (InputEventEstate.GetMouseButtonPressed(0) || InputEventEstate.GetTouches() == 2) {
+		if (!Game.is_Mobile) {
+			
+			if (InputEventEstate.GetMouseButtonPressed(0)) {
+				var target = InputEventEstate.GetMouseOffset(this.level.scrollX, this.level.scrollY)
 
-			var target = InputEventEstate.GetMouseOffset(this.level.scrollX, this.level.scrollY)
+				var explosion_Projectile = new ExplosionProjectile(this.x, this.y, {
+					x: target.x, y: target.y
+				})
+				explosion_Projectile.level = this.level
+			}
 
-			var explosion_Projectile = new ExplosionProjectile(this.x, this.y, {
-				x: target.x, y: target.y
-			})
-			explosion_Projectile.level = this.level
+		} else {
+
+			if (InputEventEstate.touch_Cursor_Atack_Mode === true && //
+				(InputEventEstate.touch_Cursor_Motion.x != 0 || InputEventEstate.touch_Cursor_Motion.y != 0)) {
+				
+				if (Game.timer.asSeconds() > 10) {
+					var target = new Point(0, 0)
+					
+					target.x = (InputEventEstate.touch_Cursor_Motion.x + this.x)
+					target.y = (InputEventEstate.touch_Cursor_Motion.y + this.y)
+
+					var explosion_Projectile = new ExplosionProjectile(this.x, this.y, {
+							x: target.x, y: target.y
+						})
+					explosion_Projectile.level = this.level
+
+					Game.timer.reset()
+				}
+			}
+
 		}
 	}
 }
@@ -1169,6 +1240,9 @@ class Game {
 	menu_Options = new Array(3)
 	menu_Selection = 0
 	fade_Transparency = 0
+	
+	static is_Mobile = false
+	static timer = new Timer()
 
 	constructor() {
 		this.level = new Level(23, 128)
@@ -1178,7 +1252,8 @@ class Game {
 		this.menu_Options[2] = "Settings"
 
 		this.fade_Timer = new Timer()
-		this.gamePad = new GamePad()
+
+		Game.is_Mobile = (navigator.platform === "Android" || navigator.platform == "iOS")
 	}
 
 	init() {
@@ -1209,7 +1284,7 @@ class Game {
 			if (option_Rect.collides(new Rect(mouse.x, mouse.y, 1, 1))) {
 				this.menu_Selection = index
 
-				if (InputEventEstate.GetMouseButtonPressed(0) || InputEventEstate.GetTouches() == 1) {
+				if (InputEventEstate.GetMouseButtonPressed(0) || InputEventEstate.GetTouches()) {
 					if (this.menu_Selection == 0) {
 						this.fade_Transparency = 0
 						this.start = true
@@ -1241,8 +1316,6 @@ class Game {
 			this.drawTitleScreen()
 
 		Text.render(`fps: ${Math.floor(this.framerate)}`, 16, 32, 32)
-
-		this.gamePad.render()
 	}
 
 	update(ticks) {
@@ -1250,7 +1323,14 @@ class Game {
 
 		this.level.update(ticks)
 
-		this.gamePad.update(ticks)
+		if (!Game.is_Mobile)
+			document.querySelector("#virtual").style.display = "none"
+		else {
+			if (InputEventEstate.touch_Cursor_Atack_Mode === true)
+				document.querySelector("#dpad-atack").style.borderColor = "blue"
+			else
+				document.querySelector("#dpad-atack").style.borderColor = "white"
+		}
 	}
 
 	run() {
@@ -1328,38 +1408,79 @@ function main() {
 		mouse.down = false
 	})*/
 
-	window.addEventListener("touchstart", function(event) {
+	//console.log()
 
-		InputEventEstate.touches.count++
+	document.querySelector("#dpad-atack").ontouchstart = function(event) {
+		InputEventEstate.touch_Cursor_Atack_Mode = !InputEventEstate.touch_Cursor_Atack_Mode
+	}
 
-		var touch = event.targetTouches[(event.targetTouches.length - 1) % 100]
+	//Direction Touch
 
-		InputEventEstate.touches.point = new Point(Math.floor(touch.clientX), Math.floor(touch.clientY))
+	var touch_Move_Start = new Point(0, 0)
 
-		var last = InputEventEstate.touches.count
+	document.querySelector("#joy-move").ontouchstart = function(event) {
 
-		InputEventEstate.touches.pressed = true
+		touch_Move_Start = new Point(event.targetTouches[0].clientX, event.targetTouches[0].clientY)
 
-		setTimeout(() => {
-			if (last == InputEventEstate.touches.count)
-				InputEventEstate.touches.count = 0
-		}, InputEventEstate.ACTION_DELAY + 200)
+	}
 
-	})
+	document.querySelector("#joy-move").ontouchmove = function(event) {
 
-	window.addEventListener("touchmove", function(event) {
-
-		var touch = event.targetTouches[(event.targetTouches.length - 1)]
-
-		InputEventEstate.touches.point = new Point(Math.floor(touch.clientX), Math.floor(touch.clientY))
-
-	})
-
-	window.addEventListener("touchend", function(event) {
+		var move_To = new Point(event.targetTouches[0].clientX, event.targetTouches[0].clientY)
 		
-		InputEventEstate.touches.pressed = false
+		InputEventEstate.touch_Cursor_Direction.x = Math.clamp((move_To.x - touch_Move_Start.x) * 0.09, -1, 1)
+		InputEventEstate.touch_Cursor_Direction.y = Math.clamp((move_To.y - touch_Move_Start.y) * 0.09, -1, 1)
+	}
 
+	document.querySelector("#joy-move").ontouchend = function(event) {
+		
+		InputEventEstate.touch_Cursor_Direction = new Point(0, 0)
+
+	}
+
+	//Cursor Touch
+
+	var cursor_BB = document.querySelector("#joy-cursor").getBoundingClientRect()
+
+	var touch_Cursor_Start = new Point(cursor_BB.left + cursor_BB.width / 2, cursor_BB.top + cursor_BB.height / 2)
+
+	document.querySelector("#joy-cursor").ontouchstart = function(event) {}
+
+	document.querySelector("#joy-cursor").ontouchmove = function(event) {
+
+		var dot_To = new Point(touch_Cursor_Start.x - event.targetTouches[0].clientX, touch_Cursor_Start.y - event.targetTouches[0].clientY)
+		var move_To = new Point(event.targetTouches[0].clientX, event.targetTouches[0].clientY)
+		var angle = Math.atan2(-dot_To.y, -dot_To.x)
+
+		InputEventEstate.touch_Cursor_Angle = 180 * angle / Math.PI
+		
+		var direction = new Point(0, 0)
+		direction.x = Math.clamp(((move_To.x - touch_Cursor_Start.x)) * 0.05, -1, 1)
+		direction.y = Math.clamp(((move_To.y - touch_Cursor_Start.y)) * 0.05, -1, 1)
+
+		InputEventEstate.touch_Cursor_Motion = direction
+	}
+
+	document.querySelector("#joy-cursor").ontouchend = function(event) {
+		InputEventEstate.touch_Cursor_Motion = new Point(0, 0)
+	}
+
+	//Touch Event
+
+	window.addEventListener("touchstart", function(event) {
+		InputEventEstate.touch_Count++
+
+		var last = InputEventEstate.touch_Count
+
+		setTimeout(function() {
+			
+			if (last == InputEventEstate.touch_Count)
+				InputEventEstate.touch_Count = 0
+
+		}, InputEventEstate.ACTION_DELAY + 200)
 	})
+
+	//Mouse Event
 
 	window.addEventListener("mousemove", function(event) {
 		InputEventEstate.cursor.x = event.offsetX
@@ -1401,6 +1522,8 @@ function main() {
 		}
 
 	})
+
+	//Keyboard Event
 
 	window.addEventListener("keyup", function (event) {
 
@@ -1446,8 +1569,8 @@ window.onload = function() {
 
 	document.querySelector("title").innerText = "Terracota"
 
-	canvas.width = window.innerWidth
-	canvas.height = window.innerHeight
+	canvas.width = window.innerWidth - 8
+	canvas.height = window.innerHeight - 8
 
 	Resource_Loader.Add([
 		"../assets/icons.png",
