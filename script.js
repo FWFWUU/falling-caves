@@ -1253,11 +1253,7 @@ class Game {
 
 		this.fade_Timer = new Timer()
 
-		if (navigator.platform === "Android" || navigator.platform == "iOS") {
-			Game.is_Mobile = true
-		}
-
-		alert(navigator.platform)
+		Game.is_Mobile = navigator.userAgentData.mobile
 	}
 
 	init() {
