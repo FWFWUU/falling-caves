@@ -1255,9 +1255,9 @@ class Game {
 
 		if (navigator.platform === "Android" || navigator.platform == "iOS") {
 			Game.is_Mobile = true
-
-			alert(navigator.platform)
 		}
+
+		alert(navigator.platform)
 	}
 
 	init() {
