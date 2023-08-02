@@ -559,7 +559,7 @@ class Level {
 
 		this.chunks.length = this.noise.w
 
-		this.light_Radius = 21
+		this.light_Radius = 15
 
 		for (let x = 0; x < this.chunks.length; x++) {
 			var chunk = new Chunk(x, 0, x * Level.chunkSize, this.h)
@@ -1253,7 +1253,11 @@ class Game {
 
 		this.fade_Timer = new Timer()
 
-		Game.is_Mobile = (navigator.platform === "Android" || navigator.platform == "iOS")
+		if (navigator.platform === "Android" || navigator.platform == "iOS") {
+			Game.is_Mobile = true
+
+			alert(navigator.platform)
+		}
 	}
 
 	init() {
@@ -1315,7 +1319,7 @@ class Game {
 		else
 			this.drawTitleScreen()
 
-		Text.render(`fps: ${Math.floor(this.framerate)}`, 16, 32, 32)
+		Text.render(`frame drop(not fps): ${Math.floor(this.framerate)} fps: ${Math.floor(120 - this.framerate)}`, 16, 32, 32)
 	}
 
 	update(ticks) {
@@ -1335,7 +1339,7 @@ class Game {
 
 	run() {
 
-		const dt = 1.0 / 60.0
+		const dt = 1.0 / 120.0
 
 		var loop = (time) => {
 
